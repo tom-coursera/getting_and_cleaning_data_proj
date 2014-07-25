@@ -1,0 +1,202 @@
+
+# README file for Class Project
+
+## Part 1: merging the training and test sets
+
+The training and test data were read into R using the following code:
+
+```{r}
+    library(plyr) ; library(htmltools) ; library(yaml)
+    library(rmarkdown) ; library(knitr)
+
+    subject_train <- read.table("./train/subject_train.txt")
+    x_train <- read.table("./train/X_train.txt")
+    y_train <- read.table("./train/y_train.txt")
+    
+    subject_test <- read.table("./test/subject_test.txt")
+    x_test <- read.table("./test/X_test.txt")
+    y_test <- read.table("./test/y_test.txt")
+```
+
+There are `r dim(x_train)[[1]]` rows in each "train" data file and `r dim(x_test)[[1]]` records in each "test" data file.  There are `r dim(x_train)[[2]]` columns in the "x_train.txt" and "x_test.txt" data files.  The columns are merged together as follows:
+
+```{r}
+    df_train <- cbind(subject_train, x_train, y_train)
+    df_test <- cbind(subject_test, x_test, y_test)
+```
+
+Next, the rows from "train" and "test" data sets are merged:
+
+```{r}
+    df <- rbind(df_train, df_test)
+```
+
+Column names for the merged data frame are assigned using the code below:
+
+```{r}
+    x_labels <- read.table("./features.txt")
+    colnames(df) <- c("subject", as.character(x_labels[,2]), "activity")
+```
+
+## Part 3: Using descriptive activity names to name the activities in the data set
+
+I performed part 3 before part 2 because it seems to be a more logical order for me. The descriptive activity names are loaded using:
+```{r}
+    y_labels <- read.table("./activity_labels.txt")
+    y_labels
+```
+The descriptive activity names are appended as a column to the data frame using:
+
+```{r}
+    for (row in 1:dim(y_labels)[[1]]) {
+         df[df$activity == y_labels[row, 1], "descriptive_activity_label"] <- y_labels[row, 2]
+    }
+```
+The results are shown below for the first and last 5 rows of the data frame
+```{r}
+head(df[,c("subject", "activity", "descriptive_activity_label")],5)
+tail(df[,c("subject", "activity", "descriptive_activity_label")],5)
+```
+
+The data frame has `r dim(df)[[1]]` rows and `r dim(df)[[2]]` columns.
+
+## Part 2: Extracting only the measurements on the mean and standard deviation
+
+This part is accomplished by searching for column names containing the strings "mean" and "std".  Those column names which we want to keep are shown below:
+
+```{r}
+    grep("activity|^subject$", names(df), value=TRUE)
+    grep("mean|meanFreq", names(df), value=TRUE)
+    grep("std", names(df), value=TRUE)
+```
+
+The code to create a sub-data frame containing only the columns of interest is shown below:
+
+```{r}
+    keep0 <- grep("activity|^subject$", names(df))
+    keep1 <- grep("mean|meanFreq", names(df))
+    keep2 <- grep("std", names(df))
+    sub_df <- df[, c(keep0, keep1, keep2)]
+```
+
+This new data frame now has `r dim(sub_df)[[1]]` rows as before but with only `r dim(sub_df)[[2]]` columns.
+
+## Part 4: Appropriately labeling the data set with descriptive variable names
+
+I think the existing column names from the data authors are already quite descriptive without being too long.  For this part of the project, I simply performed some cosmetic changes such as changing "t" to "time_", "f" to "freq_", "BodyBody" to "Body", "-" to "_" (as some software may interpret "-" as minus sign) and deleting all occurrences of "()".  The code and list of new column names are shown below.
+
+```{r}
+    old_column_names <- names(sub_df)
+    column_names <- names(sub_df)
+    for (each in 1:length(column_names)) {
+        column_names[each] <- sub("^t", "time_", column_names[each])
+        column_names[each] <- sub("^f", "freq_", column_names[each])
+        column_names[each] <- sub("BodyBody", "Body", column_names[each])
+        column_names[each] <- sub("\\(\\)", "", column_names[each])
+        column_names[each] <- gsub("-", "_", column_names[each])
+    }
+    names(sub_df) <- column_names
+    names(sub_df)
+```
+
+## Part 5: creating a second, independent tidy data set with the average of each variable for each activity and each subject
+
+The following table shows the number of observations for each combination of subject and activity.
+
+```{r}
+    table <- table(sub_df$subject, sub_df$descriptive_activity_label)
+    table
+```
+
+There are anywhere from `r min(table)` to `r max(table)` observations for each subject and each activity.  The tidy data set is created by taking the average of each measurement variable for each activity and each subject.  The code below shows how the averaging is done for each measurement variable.  It also shows how the tidy data frame is written to a *.txt* file and how the same *.txt* could be read back into R.
+
+```{r}
+    tidy_df <- ddply(
+        sub_df, .(subject, descriptive_activity_label), summarize, 
+        time_BodyAcc_mean_X = mean(time_BodyAcc_mean_X),
+        time_BodyAcc_mean_Y = mean(time_BodyAcc_mean_Y),
+        time_BodyAcc_mean_Z = mean(time_BodyAcc_mean_Z),
+        time_GravityAcc_mean_X = mean(time_GravityAcc_mean_X),
+        time_GravityAcc_mean_Y = mean(time_GravityAcc_mean_Y),
+        time_GravityAcc_mean_Z = mean(time_GravityAcc_mean_Z),
+        time_BodyAccJerk_mean_X = mean(time_BodyAccJerk_mean_X),
+        time_BodyAccJerk_mean_Y = mean(time_BodyAccJerk_mean_Y),
+        time_BodyAccJerk_mean_Z = mean(time_BodyAccJerk_mean_Z),
+        time_BodyGyro_mean_X = mean(time_BodyGyro_mean_X),
+        time_BodyGyro_mean_Y = mean(time_BodyGyro_mean_Y),
+        time_BodyGyro_mean_Z = mean(time_BodyGyro_mean_Z),
+        time_BodyGyroJerk_mean_X = mean(time_BodyGyroJerk_mean_X),
+        time_BodyGyroJerk_mean_Y = mean(time_BodyGyroJerk_mean_Y),
+        time_BodyGyroJerk_mean_Z = mean(time_BodyGyroJerk_mean_Z),
+        time_BodyAccMag_mean = mean(time_BodyAccMag_mean),
+        time_GravityAccMag_mean = mean(time_GravityAccMag_mean),
+        time_BodyAccJerkMag_mean = mean(time_BodyAccJerkMag_mean),
+        time_BodyGyroMag_mean = mean(time_BodyGyroMag_mean),
+        time_BodyGyroJerkMag_mean = mean(time_BodyGyroJerkMag_mean),
+        freq_BodyAcc_mean_X = mean(freq_BodyAcc_mean_X),
+        freq_BodyAcc_mean_Y = mean(freq_BodyAcc_mean_Y),
+        freq_BodyAcc_mean_Z = mean(freq_BodyAcc_mean_Z),
+        freq_BodyAcc_meanFreq_X = mean(freq_BodyAcc_meanFreq_X),
+        freq_BodyAcc_meanFreq_Y = mean(freq_BodyAcc_meanFreq_Y),
+        freq_BodyAcc_meanFreq_Z = mean(freq_BodyAcc_meanFreq_Z),
+        freq_BodyAccJerk_mean_X = mean(freq_BodyAccJerk_mean_X),
+        freq_BodyAccJerk_mean_Y = mean(freq_BodyAccJerk_mean_Y),
+        freq_BodyAccJerk_mean_Z = mean(freq_BodyAccJerk_mean_Z),
+        freq_BodyAccJerk_meanFreq_X = mean(freq_BodyAccJerk_meanFreq_X),
+        freq_BodyAccJerk_meanFreq_Y = mean(freq_BodyAccJerk_meanFreq_Y),
+        freq_BodyAccJerk_meanFreq_Z = mean(freq_BodyAccJerk_meanFreq_Z),
+        freq_BodyGyro_mean_X = mean(freq_BodyGyro_mean_X),
+        freq_BodyGyro_mean_Y = mean(freq_BodyGyro_mean_Y),
+        freq_BodyGyro_mean_Z = mean(freq_BodyGyro_mean_Z),
+        freq_BodyGyro_meanFreq_X = mean(freq_BodyGyro_meanFreq_X),
+        freq_BodyGyro_meanFreq_Y = mean(freq_BodyGyro_meanFreq_Y),
+        freq_BodyGyro_meanFreq_Z = mean(freq_BodyGyro_meanFreq_Z),
+        freq_BodyAccMag_mean = mean(freq_BodyAccMag_mean),
+        freq_BodyAccMag_meanFreq = mean(freq_BodyAccMag_meanFreq),
+        freq_BodyAccJerkMag_mean = mean(freq_BodyAccJerkMag_mean),
+        freq_BodyAccJerkMag_meanFreq = mean(freq_BodyAccJerkMag_meanFreq),
+        freq_BodyGyroMag_mean = mean(freq_BodyGyroMag_mean),
+        freq_BodyGyroMag_meanFreq = mean(freq_BodyGyroMag_meanFreq),
+        freq_BodyGyroJerkMag_mean = mean(freq_BodyGyroJerkMag_mean),
+        freq_BodyGyroJerkMag_meanFreq = mean(freq_BodyGyroJerkMag_meanFreq),
+        time_BodyAcc_std_X = mean(time_BodyAcc_std_X),
+        time_BodyAcc_std_Y = mean(time_BodyAcc_std_Y),
+        time_BodyAcc_std_Z = mean(time_BodyAcc_std_Z),
+        time_GravityAcc_std_X = mean(time_GravityAcc_std_X),
+        time_GravityAcc_std_Y = mean(time_GravityAcc_std_Y),
+        time_GravityAcc_std_Z = mean(time_GravityAcc_std_Z),
+        time_BodyAccJerk_std_X = mean(time_BodyAccJerk_std_X),
+        time_BodyAccJerk_std_Y = mean(time_BodyAccJerk_std_Y),
+        time_BodyAccJerk_std_Z = mean(time_BodyAccJerk_std_Z),
+        time_BodyGyro_std_X = mean(time_BodyGyro_std_X),
+        time_BodyGyro_std_Y = mean(time_BodyGyro_std_Y),
+        time_BodyGyro_std_Z = mean(time_BodyGyro_std_Z),
+        time_BodyGyroJerk_std_X = mean(time_BodyGyroJerk_std_X),
+        time_BodyGyroJerk_std_Y = mean(time_BodyGyroJerk_std_Y),
+        time_BodyGyroJerk_std_Z = mean(time_BodyGyroJerk_std_Z),
+        time_BodyAccMag_std = mean(time_BodyAccMag_std),
+        time_GravityAccMag_std = mean(time_GravityAccMag_std),
+        time_BodyAccJerkMag_std = mean(time_BodyAccJerkMag_std),
+        time_BodyGyroMag_std = mean(time_BodyGyroMag_std),
+        time_BodyGyroJerkMag_std = mean(time_BodyGyroJerkMag_std),
+        freq_BodyAcc_std_X = mean(freq_BodyAcc_std_X),
+        freq_BodyAcc_std_Y = mean(freq_BodyAcc_std_Y),
+        freq_BodyAcc_std_Z = mean(freq_BodyAcc_std_Z),
+        freq_BodyAccJerk_std_X = mean(freq_BodyAccJerk_std_X),
+        freq_BodyAccJerk_std_Y = mean(freq_BodyAccJerk_std_Y),
+        freq_BodyAccJerk_std_Z = mean(freq_BodyAccJerk_std_Z),
+        freq_BodyGyro_std_X = mean(freq_BodyGyro_std_X),
+        freq_BodyGyro_std_Y = mean(freq_BodyGyro_std_Y),
+        freq_BodyGyro_std_Z = mean(freq_BodyGyro_std_Z),
+        freq_BodyAccMag_std = mean(freq_BodyAccMag_std),
+        freq_BodyAccJerkMag_std = mean(freq_BodyAccJerkMag_std),
+        freq_BodyGyroMag_std = mean(freq_BodyGyroMag_std),
+        freq_BodyGyroJerkMag_std = mean(freq_BodyGyroJerkMag_std)
+    )
+    
+    write.table(tidy_df, "./tidy_data_set.txt")
+    read_back_in_to_check <- read.table("./tidy_data_set.txt", header = TRUE)
+
+```
+
+The resulting tidy data set consists of 180 rows (30 subjects * 6 activities). This concludes the assignment writeup.  Thanks for taking the time to read this.
